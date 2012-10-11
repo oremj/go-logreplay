@@ -1,5 +1,6 @@
 package main
 
+import "flag"
 import "fmt"
 import "io"
 import "io/ioutil"
@@ -8,6 +9,9 @@ import "runtime"
 import "sync"
 import "time"
 
+var concurrent = flag.Int("c", 1, "Concurrent users")
+var requests = flag.Int("n", 1, "Number of requests")
+var url = flag.String("u", "", "The url to test")
 
 func readBody(body io.Reader) string {
     b, _ := ioutil.ReadAll(body)
@@ -22,27 +26,30 @@ func fetch(url string) int64 {
         fmt.Println(err)
         return 0
     }
-    readBody(res.Body)
     res.Body.Close()
     duration := (time.Now().UnixNano() - start) / 1e6
     return duration
 }
 
 func main() {
-    runtime.GOMAXPROCS(8)
+    runtime.GOMAXPROCS(18)
+    flag.Parse()
 
-    workers := 20
-    requests := 200
+
+    workers := *concurrent
+    requests := *requests
+    url := *url
     requests_per_worker := requests / workers
     stats := make(chan []int64, workers)
 
+    start := time.Now().UnixNano()
     var wg sync.WaitGroup
     for i := 0; i < workers; i++ {
         wg.Add(1)
         go func() {
             durations := make([]int64, 0, requests_per_worker)
             for j :=0; j < requests_per_worker; j++ {
-                d := fetch("https://addons-dev.allizom.org/en-US/firefox/")
+                d := fetch(url)
                 durations = append(durations, d)
             }
             wg.Done()
@@ -50,6 +57,7 @@ func main() {
         }()
     }
     wg.Wait()
+    test_time := (float64(time.Now().UnixNano()) - float64(start)) / 1e9
 
     durations := make([]int64, 0, requests)
     for i := 0; i < workers; i++ {
@@ -62,5 +70,6 @@ func main() {
         sum += v
     }
 
+    fmt.Printf("%0.2f req/s\n", float64(requests) / test_time)
     fmt.Printf("Avg: %dms\n", sum / int64(requests))
 }
