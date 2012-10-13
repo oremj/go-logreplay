@@ -26,14 +26,15 @@ func fetch(url string) int {
         return 0
     }
     res.Body.Close()
+    fmt.Println("done")
     duration := (time.Now().UnixNano() - start) / 1e6
     return int(duration)
 }
 
-func RunWorker(requests int, url string) []int {
-    durations := make([]int, 0, requests)
+func RunWorker(requests chan string) []int {
+    durations := make([]int, 0)
 
-    for i :=0; i < requests; i++ {
+    for url := range requests {
         d := fetch(url)
         durations = append(durations, d)
     }
@@ -41,20 +42,26 @@ func RunWorker(requests int, url string) []int {
 }
 
 func RunTest(requests int, workers int, url string) (float64, []int) {
-    requests_per_worker := requests / workers
 
     stats := make(chan []int, workers)
+    req_chan := make(chan string)
 
     start := time.Now().UnixNano()
     for i := 0; i < workers; i++ {
         go func() {
-            stats <- RunWorker(requests_per_worker, url)
+            stats <- RunWorker(req_chan)
         }()
     }
 
+    for i:= 0; i < requests; i++ {
+        req_chan <- url
+    }
+
+    close(req_chan)
+
     durations := make([]int, 0, requests)
     for i := 0; i < workers; i++ {
-        tmp := <- stats
+        tmp := <-stats
         durations = append(durations, tmp...)
     }
 
@@ -82,6 +89,6 @@ func main() {
 
     test_time, durations := RunTest(requests, workers, url)
 
-    fmt.Printf("%0.2f req/s\n", float64(requests) / test_time)
-    fmt.Printf("Avg: %dms\n", sum(durations) / requests)
+    fmt.Printf("%0.2f req/s\n", float64(requests)/test_time)
+    fmt.Printf("Avg: %dms\n", sum(durations)/requests)
 }
