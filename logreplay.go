@@ -1,16 +1,19 @@
 package main
 
+import "bufio"
 import "flag"
 import "fmt"
 import "io"
 import "io/ioutil"
 import "net/http"
+import "os"
 import "runtime"
+import "strings"
 import "time"
 
 var concurrent = flag.Int("c", 1, "Concurrent users")
 var requests = flag.Int("n", 1, "Number of requests")
-var url = flag.String("u", "", "The url to test")
+var url_file = flag.String("f", "", "File containing URLs")
 
 func readBody(body io.Reader) string {
     b, _ := ioutil.ReadAll(body)
@@ -26,7 +29,6 @@ func fetch(url string) int {
         return 0
     }
     res.Body.Close()
-    fmt.Println("done")
     duration := (time.Now().UnixNano() - start) / 1e6
     return int(duration)
 }
@@ -41,7 +43,7 @@ func RunWorker(requests chan string) []int {
     return durations
 }
 
-func RunTest(requests int, workers int, url string) (float64, []int) {
+func RunTest(requests int, workers int, urls []string) (float64, []int) {
 
     stats := make(chan []int, workers)
     req_chan := make(chan string)
@@ -54,7 +56,7 @@ func RunTest(requests int, workers int, url string) (float64, []int) {
     }
 
     for i:= 0; i < requests; i++ {
-        req_chan <- url
+        req_chan <- urls[i % len(urls)]
     }
 
     close(req_chan)
@@ -79,15 +81,37 @@ func sum(a []int) int {
     return s
 }
 
+func getUrlsFromFile(file string) []string {
+
+    f, err := os.Open(file)
+    if err != nil {
+        fmt.Println("Could not open file:", err)
+        os.Exit(2)
+    }
+
+    urls := make([]string, 0)
+    in := bufio.NewReader(f)
+    for {
+        l, err := in.ReadString('\n')
+        if err != nil {
+            break
+        }
+        urls = append(urls, strings.TrimSpace(l))
+    }
+
+    return urls
+}
+
 func main() {
     runtime.GOMAXPROCS(18)
     flag.Parse()
 
+    urls := getUrlsFromFile(*url_file)
+
     workers := *concurrent
     requests := *requests
-    url := *url
 
-    test_time, durations := RunTest(requests, workers, url)
+    test_time, durations := RunTest(requests, workers, urls)
 
     fmt.Printf("%0.2f req/s\n", float64(requests)/test_time)
     fmt.Printf("Avg: %dms\n", sum(durations)/requests)
