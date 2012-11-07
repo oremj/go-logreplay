@@ -1,11 +1,14 @@
 package main
 
-import "bufio"
-import "flag"
-import "fmt"
-import "os"
-import "runtime"
-import "strings"
+
+import (
+    "bufio"
+    "flag"
+    "fmt"
+    "os"
+    "runtime"
+    "strings"
+)
 
 var concurrent = flag.Int("c", 1, "Concurrent users")
 var requests = flag.Int("n", 1, "Number of requests")

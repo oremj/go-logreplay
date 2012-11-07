@@ -1,8 +1,10 @@
 package main
 
-import "fmt"
-import "net/http"
-import "time"
+import (
+    "fmt"
+    "net/http"
+    "time"
+)
 
 func fetch(url string) int {
     start := time.Now().UnixNano()
